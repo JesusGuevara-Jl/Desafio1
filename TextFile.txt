@@ -1,64 +1,63 @@
-#include <Adafruit_LiquidCrystal.h>
+#include <Adafruit_LiquidCrystal.h>  // Incluye la librería para controlar pantallas LCD basadas en el controlador HD44780
 
 // Inicializar la pantalla LCD con los pines correspondientes
-Adafruit_LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
-int val=0;
-int analogPin=0;
-int signalPin = A0; // Pin de la señal del generador de funciones
-int signalValue = 0; // Valor leído de la señal
-float voltage = 0; // Voltaje calculado
+Adafruit_LiquidCrystal lcd(12, 11, 5, 4, 3, 2);  // Crea un objeto lcd para manejar la pantalla LCD con los pines 12, 11, 5, 4, 3 y 2
+
+int val = 0; // Variable para almacenar el valor leído del pin analógico
+int analogPin = 0; // Pin analógico utilizado para lectura, en este caso es el pin A0
+int signalPin = A0; // Pin de la señal del generador de funciones (A0 es el pin analógico 0)
+int signalValue = 0; // Valor leído de la señal del generador de funciones
+float voltage = 0; // Voltaje calculado a partir del valor de la señal
 int startButtonPin = 7; // Pin del pulsador de inicio
 int stopButtonPin = 8;  // Pin del pulsador de parada
-bool isReading = false; // Control de lectura
+bool isReading = false; // Variable para controlar el estado de la lectura, si está en curso o no
 
 void setup() {
   // Inicializar la comunicación serie y la pantalla LCD
-  Serial.begin(9600);
-  lcd.begin(16, 2);
-  lcd.print("Sistema listo");
+  Serial.begin(9600);  // Inicializa la comunicación serial a 9600 baudios
+  lcd.begin(16, 2);  // Inicializa la pantalla LCD con 16 columnas y 2 filas
+  lcd.print("Sistema listo");  // Muestra un mensaje inicial en la pantalla LCD
 
-  pinMode(startButtonPin, INPUT); // Configurar pulsador de inicio como entrada
-  pinMode(stopButtonPin, INPUT);  // Configurar pulsador de parada como entrada
+  pinMode(startButtonPin, INPUT); // Configura el pin del pulsador de inicio como entrada
+  pinMode(stopButtonPin, INPUT);  // Configura el pin del pulsador de parada como entrada
 }
 
 void loop() {
   
-  val= analogRead(analogPin);
-  Serial.println(val);
+  val = analogRead(analogPin);  // Lee el valor del pin analógico y lo almacena en 'val'
+  Serial.println(val);  // Envía el valor leído al Monitor Serial
+
   // Verificar si el pulsador de inicio ha sido presionado
-  if (digitalRead(startButtonPin) == HIGH && !isReading){
-    isReading = true;  // Comenzar la lectura
-    Serial.println("Iniciando lectura...");
-    lcd.clear();
-    lcd.setCursor(0, 0); // Establece el cursor en la posición (0,0)
-    lcd.print("Iniciando lectura");
+  if (digitalRead(startButtonPin) == HIGH && !isReading) {
+    isReading = true;  // Comienza la lectura
+    Serial.println("Iniciando lectura...");  // Imprime un mensaje en el Monitor Serial
+    lcd.clear();  // Limpia la pantalla LCD
+    lcd.setCursor(0, 0); // Establece el cursor en la posición (0,0) de la pantalla LCD
+    lcd.print("Iniciando lectura");  // Muestra un mensaje en la pantalla LCD
     
   }
 
   // Verificar si el pulsador de parada ha sido presionado
   if (digitalRead(stopButtonPin) == HIGH && isReading) {
-    isReading = false;  // Detener la lectura
-    Serial.println("Parando lectura...");
-    lcd.clear();
-    lcd.setCursor(0, 0); // Establece el cursor en la posición (0,0)
-    lcd.print("Parando lectura");
+    isReading = false;  // Detiene la lectura
+    Serial.println("Parando lectura...");  // Imprime un mensaje en el Monitor Serial
+    lcd.clear();  // Limpia la pantalla LCD
+    lcd.setCursor(0, 0); // Establece el cursor en la posición (0,0) de la pantalla LCD
+    lcd.print("Parando lectura");  // Muestra un mensaje en la pantalla LCD
     
   }
 
   // Si estamos en modo de lectura, capturar y enviar los valores
   if (isReading) {
-    signalValue = analogRead(signalPin); // Leer la señal
-    voltage = signalValue * (5.0 / 1023.0); // Convertir a voltios
-    
+   
     // Enviar el voltaje al Monitor Serial
-    Serial.print("Voltaje: ");
-    Serial.println(voltage);
+   
+    Serial.println(val);
     
     // Mostrar el voltaje en el LCD
-    lcd.setCursor(0, 1); // Establece el cursor en la segunda línea
-    lcd.print("Volt: ");
-    lcd.print(voltage);
-    lcd.print(" V");
+    lcd.setCursor(0, 1); // Establece el cursor en la segunda línea de la pantalla LCD
+    lcd.print("Valores: "); // Muestra la etiqueta 'Volt: '
+    lcd.print(val); // Muestra el valor del voltaje
     
   }
 }
