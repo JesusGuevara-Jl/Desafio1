@@ -3,14 +3,16 @@
 // Inicializar la pantalla LCD con los pines correspondientes
 Adafruit_LiquidCrystal lcd(12, 11, 5, 4, 3, 2);  // Crea un objeto lcd para manejar la pantalla LCD con los pines 12, 11, 5, 4, 3 y 2
 
-int val = 0; // Variable para almacenar el valor leído del pin analógico
-int analogPin = 0; // Pin analógico utilizado para lectura, en este caso es el pin A0
-int signalPin = A0; // Pin de la señal del generador de funciones (A0 es el pin analógico 0)
-int signalValue = 0; // Valor leído de la señal del generador de funciones
-float voltage = 0; // Voltaje calculado a partir del valor de la señal
-int startButtonPin = 7; // Pin del pulsador de inicio
-int stopButtonPin = 8;  // Pin del pulsador de parada
-bool isReading = false; // Variable para controlar el estado de la lectura, si está en curso o no
+int valor = 0; // Variable para almacenar el valor leído del pin analógico
+int pinAnalogico = 0; // Pin analógico utilizado para lectura, en este caso es el pin A0
+int pinSenal = A0; // Pin de la señal del generador de funciones (A0 es el pin analógico 0)
+int pinBotonInicio = 7; // Pin del pulsador de inicio
+int pinBotonParada = 8;  // Pin del pulsador de parada
+bool estaLeyendo = false; // Variable para controlar el estado de la lectura, si está en curso o no
+
+int* datos = nullptr;  // Puntero dinámico para almacenar los valores
+int tamano = 10;        // Tamaño inicial del arreglo
+int cantidad = 0;        // Número de valores almacenados
 
 void setup() {
   // Inicializar la comunicación serie y la pantalla LCD
@@ -18,46 +20,67 @@ void setup() {
   lcd.begin(16, 2);  // Inicializa la pantalla LCD con 16 columnas y 2 filas
   lcd.print("Sistema listo");  // Muestra un mensaje inicial en la pantalla LCD
 
-  pinMode(startButtonPin, INPUT); // Configura el pin del pulsador de inicio como entrada
-  pinMode(stopButtonPin, INPUT);  // Configura el pin del pulsador de parada como entrada
+  pinMode(pinBotonInicio, INPUT); // Configura el pin del pulsador de inicio como entrada
+  pinMode(pinBotonParada, INPUT);  // Configura el pin del pulsador de parada como entrada
 }
 
 void loop() {
-  
-  val = analogRead(analogPin);  // Lee el valor del pin analógico y lo almacena en 'val'
-  Serial.println(val);  // Envía el valor leído al Monitor Serial
+  valor = analogRead(pinAnalogico);  // Lee el valor del pin analógico y lo almacena en 'valor'
+  Serial.println(valor);  // Envía el valor leído al Monitor Serial
 
   // Verificar si el pulsador de inicio ha sido presionado
-  if (digitalRead(startButtonPin) == HIGH && !isReading) {
-    isReading = true;  // Comienza la lectura
+  if (digitalRead(pinBotonInicio) == HIGH && !estaLeyendo) {
+    estaLeyendo = true;  // Comienza la lectura
     Serial.println("Iniciando lectura...");  // Imprime un mensaje en el Monitor Serial
     lcd.clear();  // Limpia la pantalla LCD
     lcd.setCursor(0, 0); // Establece el cursor en la posición (0,0) de la pantalla LCD
     lcd.print("Iniciando lectura");  // Muestra un mensaje en la pantalla LCD
-    
+
+    // Asignar memoria para almacenar los valores leídos
+    datos = new int[tamano];  // Inicializar el arreglo dinámico
+    cantidad = 0;  // Reiniciar el contador de datos
   }
 
   // Verificar si el pulsador de parada ha sido presionado
-  if (digitalRead(stopButtonPin) == HIGH && isReading) {
-    isReading = false;  // Detiene la lectura
+  if (digitalRead(pinBotonParada) == HIGH && estaLeyendo) {
+    estaLeyendo = false;  // Detiene la lectura
     Serial.println("Parando lectura...");  // Imprime un mensaje en el Monitor Serial
     lcd.clear();  // Limpia la pantalla LCD
     lcd.setCursor(0, 0); // Establece el cursor en la posición (0,0) de la pantalla LCD
     lcd.print("Parando lectura");  // Muestra un mensaje en la pantalla LCD
-    
+
+    // Mostrar cuántos datos fueron leídos
+    lcd.setCursor(0, 1);  // Establece el cursor en la segunda línea
+    lcd.print("Num Datos: ");
+    lcd.print(cantidad);  // Muestra el número de datos leídos
+
+    Serial.print("Total de datos leídos: ");
+    Serial.println(cantidad);  // Mostrar en el Monitor Serial
+
+    // Liberar la memoria dinámica
+    delete[] datos;  // Eliminar el arreglo dinámico
+    datos = nullptr;  // Limpiar el puntero
   }
 
-  // Si estamos en modo de lectura, capturar y enviar los valores
-  if (isReading) {
-   
-    // Enviar el voltaje al Monitor Serial
-   
-    Serial.println(val);
-    
+  // Si estamos en modo de lectura, capturar y almacenar los valores
+  if (estaLeyendo) {
+    // Verificar si es necesario redimensionar el arreglo
+    if (cantidad == tamano) {
+      int* nuevosDatos = new int[tamano * 2];  // Duplicar el tamaño del arreglo
+      for (int i = 0; i < tamano; i++) {
+        nuevosDatos[i] = datos[i];  // Copiar los datos existentes
+      }
+      delete[] datos;  // Liberar la memoria del arreglo antiguo
+      datos = nuevosDatos;  // Actualizar el puntero
+      tamano *= 2;  // Actualizar el tamaño del arreglo
+    }
+
+    // Almacenar el nuevo valor
+    datos[cantidad++] = valor;
+
     // Mostrar el voltaje en el LCD
     lcd.setCursor(0, 1); // Establece el cursor en la segunda línea de la pantalla LCD
-    lcd.print("Valores: "); // Muestra la etiqueta 'Volt: '
-    lcd.print(val); // Muestra el valor del voltaje
-    
+    lcd.print("Valores:");// Imprime la etiqueta valores
+    lcd.print(valor); // Imprime los valores del generador en la pantalla LCD
   }
 }
