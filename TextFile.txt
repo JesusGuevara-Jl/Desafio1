@@ -1,21 +1,27 @@
-#include <Adafruit_LiquidCrystal.h>  // Incluye la librería para controlar pantallas LCD basadas en el controlador HD44780
+#include <LiquidCrystal.h>
 
-// Inicializar la pantalla LCD con los pines correspondientes
-Adafruit_LiquidCrystal lcd(12, 11, 5, 4, 3, 2);  // Crea un objeto lcd para manejar la pantalla LCD con los pines 12, 11, 5, 4, 3 y 2
+// Inicializar la pantalla LCD (configuración típica para pantallas de 16x2)
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 
 int valor = 0; // Variable para almacenar el valor leído del pin analógico
-int pinAnalogico = 0; // Pin analógico utilizado para lectura, en este caso es el pin A0
-int pinSenal = A0; // Pin de la señal del generador de funciones (A0 es el pin analógico 0)
+int pinAnalogico = A0; // Pin analógico utilizado para lectura
 int pinBotonInicio = 7; // Pin del pulsador de inicio
 int pinBotonParada = 8;  // Pin del pulsador de parada
-bool estaLeyendo = false; // Variable para controlar el estado de la lectura, si está en curso o no
+bool estaLeyendo = false; // Variable para controlar el estado de la lectura
 
 int* datos = nullptr;  // Puntero dinámico para almacenar los valores
 int tamano = 10;        // Tamaño inicial del arreglo
 int cantidad = 0;        // Número de valores almacenados
 
+unsigned long tiempoInicio;  // Variable para almacenar el tiempo de inicio de la lectura
+unsigned long intervalo = 1000; // Intervalo de tiempo en milisegundos (1 segundo)
+
+const int limiteDatos = 500; // Límite de datos a almacenar
+
+// Variables del umbral y desfase
+int cruceUmbral = 512;  // Umbral para detectar cruces de cero (valor inicial, será dinámico)
+
 void setup() {
-  // Inicializar la comunicación serie y la pantalla LCD
   Serial.begin(9600);  // Inicializa la comunicación serial a 9600 baudios
   lcd.begin(16, 2);  // Inicializa la pantalla LCD con 16 columnas y 2 filas
   lcd.print("Sistema listo");  // Muestra un mensaje inicial en la pantalla LCD
@@ -25,62 +31,250 @@ void setup() {
 }
 
 void loop() {
-  valor = analogRead(pinAnalogico);  // Lee el valor del pin analógico y lo almacena en 'valor'
-  Serial.println(valor);  // Envía el valor leído al Monitor Serial
+  valor = analogRead(pinAnalogico);  // Leer el valor del pin analógico
+  Serial.println(valor);
 
-  // Verificar si el pulsador de inicio ha sido presionado
+  // Verificar si se presionó el botón de inicio
   if (digitalRead(pinBotonInicio) == HIGH && !estaLeyendo) {
-    estaLeyendo = true;  // Comienza la lectura
-    Serial.println("Iniciando lectura...");  // Imprime un mensaje en el Monitor Serial
-    lcd.clear();  // Limpia la pantalla LCD
-    lcd.setCursor(0, 0); // Establece el cursor en la posición (0,0) de la pantalla LCD
-    lcd.print("Iniciando lectura");  // Muestra un mensaje en la pantalla LCD
+    estaLeyendo = true;  
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Iniciando lectura");
 
-    // Asignar memoria para almacenar los valores leídos
     datos = new int[tamano];  // Inicializar el arreglo dinámico
-    cantidad = 0;  // Reiniciar el contador de datos
+    cantidad = 0;  
+    tiempoInicio = millis();  // Capturar el tiempo de inicio
   }
 
-  // Verificar si el pulsador de parada ha sido presionado
-  if (digitalRead(pinBotonParada) == HIGH && estaLeyendo) {
-    estaLeyendo = false;  // Detiene la lectura
-    Serial.println("Parando lectura...");  // Imprime un mensaje en el Monitor Serial
-    lcd.clear();  // Limpia la pantalla LCD
-    lcd.setCursor(0, 0); // Establece el cursor en la posición (0,0) de la pantalla LCD
-    lcd.print("Parando lectura");  // Muestra un mensaje en la pantalla LCD
-
-    // Mostrar cuántos datos fueron leídos
-    lcd.setCursor(0, 1);  // Establece el cursor en la segunda línea
-    lcd.print("Num Datos: ");
-    lcd.print(cantidad);  // Muestra el número de datos leídos
-
-    Serial.print("Total de datos leídos: ");
-    Serial.println(cantidad);  // Mostrar en el Monitor Serial
-
-    // Liberar la memoria dinámica
-    delete[] datos;  // Eliminar el arreglo dinámico
-    datos = nullptr;  // Limpiar el puntero
-  }
-
-  // Si estamos en modo de lectura, capturar y almacenar los valores
+  // Si estamos leyendo, capturar los datos
   if (estaLeyendo) {
-    // Verificar si es necesario redimensionar el arreglo
-    if (cantidad == tamano) {
-      int* nuevosDatos = new int[tamano * 2];  // Duplicar el tamaño del arreglo
-      for (int i = 0; i < tamano; i++) {
-        nuevosDatos[i] = datos[i];  // Copiar los datos existentes
-      }
-      delete[] datos;  // Liberar la memoria del arreglo antiguo
-      datos = nuevosDatos;  // Actualizar el puntero
-      tamano *= 2;  // Actualizar el tamaño del arreglo
+    unsigned long tiempoLectura = millis() - tiempoInicio;  // Tiempo total de lectura
+    
+    // Si ha pasado el intervalo
+    if (tiempoLectura >= intervalo) {
+      Serial.print("Tiempo total transcurrido: ");
+      Serial.println(tiempoLectura);
     }
 
-    // Almacenar el nuevo valor
+    // Almacenar el nuevo valor en el arreglo dinámico
+    if (cantidad == tamano) {
+      int* nuevosDatos = new int[tamano * 2];
+      for (int i = 0; i < tamano; i++) {
+        nuevosDatos[i] = datos[i];
+      }
+      delete[] datos;
+      datos = nuevosDatos;
+      tamano *= 2;
+    }
+
     datos[cantidad++] = valor;
 
-    // Mostrar el voltaje en el LCD
-    lcd.setCursor(0, 1); // Establece el cursor en la segunda línea de la pantalla LCD
-    lcd.print("Valores:");// Imprime la etiqueta valores
-    lcd.print(valor); // Imprime los valores del generador en la pantalla LCD
+    // Si alcanzamos el límite de datos, procesar los resultados
+    if (cantidad >= limiteDatos) {
+      estaLeyendo = false;
+      procesarResultados();
+    }
+  }
+
+  // Verificar si se presionó el botón de parada
+  if (digitalRead(pinBotonParada) == HIGH && estaLeyendo) {
+    estaLeyendo = false;
+    procesarResultados();
   }
 }
+
+// Procesar resultados cuando se alcanza el límite de datos o se presiona el botón de parada
+void procesarResultados() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Procesando...");
+
+  unsigned long tiempoTotalLectura = millis() - tiempoInicio;  // Tiempo total de la lectura
+
+  // Calcular el umbral dinámico
+  float umbralDinamico = calcularUmbralDinamico();
+
+  // Calcular frecuencia, amplitud y desfase usando el umbral dinámico
+  float frecuencia = calcularFrecuencia(tiempoTotalLectura, umbralDinamico);
+  float amplitud = calcularAmplitud();
+  float desfase = calcularDesfase(umbralDinamico);
+
+  // Mostrar en pantalla LCD
+  lcd.setCursor(0, 0);
+  lcd.print("Freq: ");
+  lcd.print(frecuencia, 2);
+  lcd.print(" Hz");
+
+  lcd.setCursor(0, 1);
+  lcd.print("Amp: ");
+  lcd.print(amplitud, 2);
+  lcd.print(" V");
+
+  // Esperar un segundo antes de mostrar el tipo de onda
+  delay(1000);
+
+  // Detectar y mostrar el tipo de onda
+  String tipoOnda = detectarTipoOnda();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Tipo: ");
+  lcd.print(tipoOnda);
+
+  // Esperar un segundo antes de reiniciar
+  delay(1000);
+
+  // Reiniciar el sistema
+  delete[] datos;
+  datos = nullptr;
+  cantidad = 0;
+  tamano = 10;
+  lcd.clear();
+  lcd.print("Sistema listo");
+}
+
+// Función para calcular la frecuencia de la señal
+float calcularFrecuencia(unsigned long tiempoTotalLectura, float umbralDinamico) {
+  int cruces = 0;
+  
+  // Contar cruces por el umbral dinámico
+  for (int i = 1; i < cantidad; i++) {
+    if ((datos[i - 1] < umbralDinamico && datos[i] >= umbralDinamico) ||
+        (datos[i - 1] > umbralDinamico && datos[i] <= umbralDinamico)) {
+      cruces++;
+    }
+  }
+
+  // Número de cruces de cero / 2 para obtener ciclos completos
+  int ciclosCompletos = cruces / 2;
+
+  // Tiempo total en segundos
+  float tiempoTotalSegundos = tiempoTotalLectura / 1000.0;
+
+  // Frecuencia = ciclos completos / tiempo total
+  float frecuencia = ciclosCompletos / tiempoTotalSegundos;
+
+  return frecuencia;
+}
+
+// Función para calcular la amplitud de la señal
+float calcularAmplitud() {
+  int maxValor = datos[0];
+  int minValor = datos[0];
+
+  for (int i = 1; i < cantidad; i++) {
+    if (datos[i] > maxValor) {
+      maxValor = datos[i];
+    }
+    if (datos[i] < minValor) {
+      minValor = datos[i];
+    }
+  }
+
+  // Amplitud = valor máximo - valor mínimo
+  float amplitud = maxValor - minValor;
+
+  // Convertir amplitud a voltios (suponiendo un rango de 0-5V)
+  return (amplitud / 1023.0) * 5;  // Asumiendo un rango de 0-5V
+}
+
+// Función para calcular el umbral dinámico
+float calcularUmbralDinamico() {
+  int maxValor = datos[0];
+  int minValor = datos[0];
+
+  for (int i = 1; i < cantidad; i++) {
+    if (datos[i] > maxValor) {
+      maxValor = datos[i];
+    }
+    if (datos[i] < minValor) {
+      minValor = datos[i];
+    }
+  }
+
+  // El umbral dinámico es el valor medio entre el valor máximo y el valor mínimo
+  return (maxValor + minValor) / 2.0;
+}
+
+// Función para calcular el desfase de la señal
+float calcularDesfase(float umbralDinamico) {
+  int cruceInicial = -1;  // Índice donde ocurre el primer cruce por el umbral dinámico
+  float tiempoDesfase = 0;
+
+  // Buscar el primer cruce por el umbral dinámico
+  for (int i = 1; i < cantidad; i++) {
+    if ((datos[i - 1] < umbralDinamico && datos[i] >= umbralDinamico) ||
+        (datos[i - 1] > umbralDinamico && datos[i] <= umbralDinamico)) {
+      cruceInicial = i;
+      break;
+    }
+  }
+
+  // Si se encontró un cruce inicial, calcular el tiempo de desfase
+  if (cruceInicial != -1) {
+    tiempoDesfase = cruceInicial * (intervalo / (float)cantidad);
+  }
+
+  return tiempoDesfase;
+}
+
+String detectarTipoOnda() {
+  int maxValor = datos[0];
+  int minValor = datos[0];
+  
+  // Encontrar valores máximos y mínimos
+  for (int i = 1; i < cantidad; i++) {
+    if (datos[i] > maxValor) {
+      maxValor = datos[i];
+    }
+    if (datos[i] < minValor) {
+      minValor = datos[i];
+    }
+  }
+
+  // Detectar onda cuadrada basado en repeticiones constantes
+  int repeticionesMax = 0;
+  int repeticionesMin = 0;
+  int actual = datos[0];
+  int contador = 0;
+  
+  // Contar repeticiones de cada valor máximo y mínimo
+  for (int i = 0; i < cantidad; i++) {
+    if (datos[i] == actual) {
+      contador++;
+    } else {
+      if (actual == maxValor) {
+        repeticionesMax = max(repeticionesMax, contador);
+      } else if (actual == minValor) {
+        repeticionesMin = max(repeticionesMin, contador);
+      }
+      actual = datos[i];
+      contador = 1;
+    }
+  }
+  // Considerar la última secuencia
+  if (actual == maxValor) {
+    repeticionesMax = max(repeticionesMax, contador);
+  } else if (actual == minValor) {
+    repeticionesMin = max(repeticionesMin, contador);
+  }
+
+  // Evaluar si es onda cuadrada basada en repeticiones similares
+  if (repeticionesMax == repeticionesMin && repeticionesMax > 0) {
+    return "Cuadrada";
+  }
+
+  // Calcular diferencias entre picos para otras ondas
+  float diferenciaPicos = maxValor - minValor;
+
+  if (diferenciaPicos < 50) {  
+    return "Senoidal";
+  } else if (diferenciaPicos >= 50 && diferenciaPicos <= 500) {
+    return "Triangular";
+  } else {
+    return "Desconocida";
+  }
+}
+
+
+
+
